@@ -11,8 +11,8 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ⚠️ ĐIỀN THÔNG TIN SUPABASE CỦA BẠN VÀO 2 DÒNG NÀY:
-const SUPABASE_URL = 'THAY_PROJECT_URL_CUA_BAN_VAO_DAY';
-const SUPABASE_KEY = 'THAY_ANON_PUBLIC_KEY_CUA_BAN_VAO_DAY';
+const SUPABASE_URL = 'https://prowunbttjdcqeqmprxr.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb3d1bmJ0dGpkY3FlcW1wcnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0MDUsImV4cCI6MjEwMDk1NTQwNX0.8BaqqhAQZ92T4VlMyrI6baLa6nH2bIuiW9eOUGCbaj4';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // API 1: Raspberry Pi tải Video lên + Lưu vào Database
