@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
-const path = require('path');
 const cors = require('cors');
 
 const app = express();
@@ -11,15 +10,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// ⚠️ THAY THÔNG TIN SUPABASE CỦA BẠN VÀO 2 DÒNG NÀY:
+// ⚠️ THAY 2 THÔNG TIN SUPABASE BƯỚC 1 CỦA BẠN VÀO ĐÂY:
 const SUPABASE_URL = 'THAY_PROJECT_URL_CUA_BAN_VAO_DAY';
 const SUPABASE_KEY = 'THAY_ANON_PUBLIC_KEY_CUA_BAN_VAO_DAY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// API 1: Tải video từ Pi lên
+// API 1: Tải video từ Raspberry Pi lên Supabase
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
-    const { qr_code, created_at, api_key } = req.body;
+    const { qr_code, api_key } = req.body;
     const file = req.file;
 
     if (api_key !== 'dhn_secret_key_123456') {
@@ -28,7 +27,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-    // Đặt tên file dạng: MAQR_THOIGIAN.mp4
+    // Đặt tên file chuẩn: MAQR_TIMESTAMP.mp4
     const fileName = `${qr_code}_${Date.now()}.mp4`;
 
     const { data, error } = await supabase.storage
@@ -51,26 +50,30 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// API 2: Tra cứu video theo Mã QR (Đã FIX LỖI PATH)
+// API 2: Tra cứu video theo Mã QR (FIX LỖI INVALID PATH)
 app.get('/api/search/:qr_code', async (req, res) => {
   try {
     const qr = req.params.qr_code.trim();
 
-    // Lấy danh sách file trong bucket
+    // Fix chuẩn Supabase SDK v2: Gọi list() không truyền tham số rỗng
     const { data: files, error } = await supabase.storage
       .from('packaging-videos')
       .list();
 
     if (error) throw error;
 
-    // Lọc các file có chứa Mã QR người dùng nhập
-    const matchedFiles = files.filter(f => f.name.includes(qr));
-
-    if (!matchedFiles || matchedFiles.length === 0) {
-      return res.status(404).json({ error: 'Không tìm thấy video đóng gói cho mã này!' });
+    if (!files || files.length === 0) {
+      return res.status(404).json({ error: 'Chưa có video nào trên hệ thống Cloud!' });
     }
 
-    // Sắp xếp lấy video mới nhất
+    // Lọc các file có tên chứa mã QR vừa tìm
+    const matchedFiles = files.filter(f => f.name.includes(qr));
+
+    if (matchedFiles.length === 0) {
+      return res.status(404).json({ error: `Không tìm thấy video nào cho mã đơn: ${qr}` });
+    }
+
+    // Lấy file mới nhất
     matchedFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const latestFile = matchedFiles[0];
 
