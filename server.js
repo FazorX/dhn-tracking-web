@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ⚠️ ĐIỀN THÔNG TIN SUPABASE BƯỚC 1 CỦA BẠN VÀO 2 DÒNG NÀY:
-const SUPABASE_URL = 'https://prowunbttjdcqeqmprxr.supabase.co/rest/v1/';
+const SUPABASE_URL = 'https://prowunbttjdcqeqmprxr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb3d1bmJ0dGpkY3FlcW1wcnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0MDUsImV4cCI6MjEwMDk1NTQwNX0.8BaqqhAQZ92T4VlMyrI6baLa6nH2bIuiW9eOUGCbaj4';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
