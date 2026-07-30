@@ -1,0 +1,86 @@
+const express = require('express');
+const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
+const path = require('path');
+const cors = require('cors');
+
+const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+
+// ⚠️ THAY 2 THÔNG TIN Ở BƯỚC 1 VÀO ĐÂY:
+const SUPABASE_URL = 'https://prowunbttjdcqeqmprxr.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb3d1bmJ0dGpkY3FlcW1wcnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0MDUsImV4cCI6MjEwMDk1NTQwNX0.8BaqqhAQZ92T4VlMyrI6baLa6nH2bIuiW9eOUGCbaj4';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// API nhận Video từ Pi tải lên
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  try {
+    const { qr_code, created_at, api_key } = req.body;
+    const file = req.file;
+
+    if (api_key !== 'dhn_secret_key_123456') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const fileName = `${qr_code}_${Date.now()}.mp4`;
+
+    const { data, error } = await supabase.storage
+      .from('packaging-videos')
+      .upload(fileName, file.buffer, {
+        contentType: 'video/mp4',
+        upsert: true
+      });
+
+    if (error) throw error;
+
+    const { data: urlData } = supabase.storage
+      .from('packaging-videos')
+      .getPublicUrl(fileName);
+
+    return res.json({ success: true, url: urlData.publicUrl });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// API Tra cứu Video
+app.get('/api/search/:qr_code', async (req, res) => {
+  try {
+    const qr = req.params.qr_code.trim();
+
+    const { data: files, error } = await supabase.storage
+      .from('packaging-videos')
+      .list('', { search: qr });
+
+    if (error) throw error;
+
+    if (!files || files.length === 0) {
+      return res.status(404).json({ error: 'Không tìm thấy video đóng gói cho mã này!' });
+    }
+
+    files.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const latestFile = files[0];
+
+    const { data: urlData } = supabase.storage
+      .from('packaging-videos')
+      .getPublicUrl(latestFile.name);
+
+    return res.json({
+      qr_code: qr,
+      video_url: urlData.publicUrl,
+      created_at: latestFile.created_at
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
