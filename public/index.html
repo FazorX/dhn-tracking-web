@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Tra Cứu Video Đóng Gói - DHN</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+  <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl p-6 mt-10">
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-2">📦 TRA CỨU VIDEO ĐÓNG GÓI</h1>
+    <p class="text-gray-500 text-center text-sm mb-6">Nhập mã vận đơn / Mã QR để xem lại quá trình đóng gói</p>
+
+    <div class="flex gap-2 mb-6">
+      <input type="text" id="qrInput" placeholder="Nhập mã đơn hàng..." class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <button onclick="searchVideo()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition">Tìm kiếm</button>
+    </div>
+
+    <div id="loading" class="hidden text-center text-gray-500 my-4">⏳ Đang tìm kiếm video...</div>
+    <div id="error" class="hidden text-center text-red-500 font-semibold my-4"></div>
+
+    <div id="result" class="hidden flex-col items-center">
+      <p class="text-sm text-gray-600 mb-2">Mã đơn: <strong id="resQr" class="text-blue-600"></strong></p>
+      <video id="videoPlayer" controls class="w-full rounded-lg border border-gray-200 shadow-md mb-2"></video>
+      <span id="resTime" class="text-xs text-gray-400"></span>
+    </div>
+  </div>
+
+  <script>
+    async function searchVideo() {
+      const qr = document.getElementById('qrInput').value.trim();
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
+      const result = document.getElementById('result');
+
+      if (!qr) return alert('Vui lòng nhập mã đơn!');
+
+      loading.classList.remove('hidden');
+      error.classList.add('hidden');
+      result.classList.add('hidden');
+
+      try {
+        const res = await fetch(`/api/search/${encodeURIComponent(qr)}`);
+        const data = await res.json();
+
+        loading.classList.add('hidden');
+
+        if (!res.ok) {
+          error.innerText = data.error || 'Lỗi không xác định';
+          error.classList.remove('hidden');
+          return;
+        }
+
+        document.getElementById('resQr').innerText = data.qr_code;
+        document.getElementById('videoPlayer').src = data.video_url;
+        document.getElementById('resTime').innerText = 'Thời gian tải lên: ' + new Date(data.created_at).toLocaleString('vi-VN');
+        result.classList.remove('hidden');
+        result.classList.add('flex');
+      } catch (err) {
+        loading.classList.add('hidden');
+        error.innerText = 'Không kết nối được đến máy chủ!';
+        error.classList.remove('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
