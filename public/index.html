@@ -7,12 +7,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
-  <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl p-6 mt-10">
+  
+  <!-- KHUNG TRA CỨU MÃ -->
+  <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 mt-6">
     <h1 class="text-2xl font-bold text-center text-blue-600 mb-2">📦 TRA CỨU VIDEO ĐÓNG GÓI</h1>
     <p class="text-gray-500 text-center text-sm mb-6">Nhập mã vận đơn / Mã QR để xem lại quá trình đóng gói</p>
 
     <div class="flex gap-2 mb-6">
-      <input type="text" id="qrInput" placeholder="Nhập mã đơn hàng..." class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <input type="text" id="qrInput" placeholder="Nhập mã đơn hàng (VD: DHN-77475C10)..." class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
       <button onclick="searchVideo()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition">Tìm kiếm</button>
     </div>
 
@@ -22,11 +24,37 @@
     <div id="result" class="hidden flex-col items-center">
       <p class="text-sm text-gray-600 mb-2">Mã đơn: <strong id="resQr" class="text-blue-600"></strong></p>
       <video id="videoPlayer" controls class="w-full rounded-lg border border-gray-200 shadow-md mb-2"></video>
-      <span id="resTime" class="text-xs text-gray-400"></span>
+      <span id="resTime" class="text-xs text-gray-400 mb-4"></span>
+    </div>
+  </div>
+
+  <!-- DANH SÁCH VIDEO ĐÃ TẢI LÊN -->
+  <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 mt-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-bold text-gray-700">🎬 Danh Sách Video Đã Tải Lên Cloud</h2>
+      <button onclick="loadAllVideos()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-1 rounded transition">🔄 Làm mới</button>
+    </div>
+
+    <div id="listLoading" class="text-center text-gray-400 py-4">Đang tải danh sách...</div>
+    
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm border-collapse">
+        <thead>
+          <tr class="bg-gray-50 border-b">
+            <th class="p-3">Mã QR</th>
+            <th class="p-3">Thời Gian Upload</th>
+            <th class="p-3 text-right">Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody id="videoTableBody">
+          <!-- Dữ liệu video sẽ tự nạp vào đây -->
+        </tbody>
+      </table>
     </div>
   </div>
 
   <script>
+    // Hàm tìm kiếm theo Mã QR
     async function searchVideo() {
       const qr = document.getElementById('qrInput').value.trim();
       const loading = document.getElementById('loading');
@@ -62,6 +90,43 @@
         error.classList.remove('hidden');
       }
     }
+
+    // Hàm lấy danh sách tất cả video đã upload
+    async function loadAllVideos() {
+      const tbody = document.getElementById('videoTableBody');
+      const listLoading = document.getElementById('listLoading');
+      tbody.innerHTML = '';
+      listLoading.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/videos');
+        const data = await res.json();
+        listLoading.classList.add('hidden');
+
+        if (data.success && data.videos.length > 0) {
+          data.videos.forEach(vid => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            tr.innerHTML = `
+              <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
+              <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
+              <td class="p-3 text-right">
+                <a href="${vid.video_url}" target="_blank" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-semibold px-3 py-1 rounded text-xs transition">▶ Xem Video</a>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Chưa có video nào trên hệ thống!</td></tr>';
+        }
+      } catch (err) {
+        listLoading.classList.add('hidden');
+        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Không thể tải danh sách video.</td></tr>';
+      }
+    }
+
+    // Tự động tải danh sách video khi vừa mở trang
+    window.onload = loadAllVideos;
   </script>
 </body>
 </html>
