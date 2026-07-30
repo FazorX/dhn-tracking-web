@@ -11,12 +11,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// ⚠️ THAY 2 THÔNG TIN Ở BƯỚC 1 VÀO ĐÂY:
-const SUPABASE_URL = 'https://prowunbttjdcqeqmprxr.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb3d1bmJ0dGpkY3FlcW1wcnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0MDUsImV4cCI6MjEwMDk1NTQwNX0.8BaqqhAQZ92T4VlMyrI6baLa6nH2bIuiW9eOUGCbaj4';
+// ⚠️ THAY THÔNG TIN SUPABASE CỦA BẠN VÀO 2 DÒNG NÀY:
+const SUPABASE_URL = 'THAY_PROJECT_URL_CUA_BAN_VAO_DAY';
+const SUPABASE_KEY = 'THAY_ANON_PUBLIC_KEY_CUA_BAN_VAO_DAY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// API nhận Video từ Pi tải lên
+// API 1: Tải video từ Pi lên
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     const { qr_code, created_at, api_key } = req.body;
@@ -28,6 +28,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
+    // Đặt tên file dạng: MAQR_THOIGIAN.mp4
     const fileName = `${qr_code}_${Date.now()}.mp4`;
 
     const { data, error } = await supabase.storage
@@ -50,23 +51,28 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// API Tra cứu Video
+// API 2: Tra cứu video theo Mã QR (Đã FIX LỖI PATH)
 app.get('/api/search/:qr_code', async (req, res) => {
   try {
     const qr = req.params.qr_code.trim();
 
+    // Lấy danh sách file trong bucket
     const { data: files, error } = await supabase.storage
       .from('packaging-videos')
-      .list('', { search: qr });
+      .list();
 
     if (error) throw error;
 
-    if (!files || files.length === 0) {
+    // Lọc các file có chứa Mã QR người dùng nhập
+    const matchedFiles = files.filter(f => f.name.includes(qr));
+
+    if (!matchedFiles || matchedFiles.length === 0) {
       return res.status(404).json({ error: 'Không tìm thấy video đóng gói cho mã này!' });
     }
 
-    files.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const latestFile = files[0];
+    // Sắp xếp lấy video mới nhất
+    matchedFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const latestFile = matchedFiles[0];
 
     const { data: urlData } = supabase.storage
       .from('packaging-videos')
