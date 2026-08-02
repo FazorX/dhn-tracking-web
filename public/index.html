@@ -3,173 +3,230 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hệ Thống Tra Cứu Video Đóng Gói - DHN</title>
+  <title>Tra Cứu Video Đóng Gói</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
-  
-  <!-- KHUNG TRA CỨU MÃ -->
-  <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 mt-6">
-    <h1 class="text-2xl font-bold text-center text-blue-600 mb-2">📦 TRA CỨU VIDEO ĐÓNG GÓI</h1>
-    <p class="text-gray-500 text-center text-sm mb-6">Nhập mã vận đơn / Mã QR để xem lại quá trình đóng gói</p>
-
-    <div class="flex gap-2 mb-6">
-      <input type="text" id="qrInput" placeholder="Nhập mã đơn hàng (VD: DHN-77475C10)..." class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-      <button onclick="searchVideo()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition">Tìm kiếm</button>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- KHUNG TÌM KIẾM -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border">
+      <h1 class="text-xl font-bold text-gray-800 mb-4 text-center md:text-left">📦 Tra Cứu Video Đóng Gói</h1>
+      
+      <div class="flex flex-col md:flex-row gap-3">
+        <input 
+          type="text" 
+          id="qrInput" 
+          placeholder="Nhập hoặc quét mã QR / Mã đơn hàng..." 
+          class="flex-1 border rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+          onkeypress="if(event.key === 'Enter') searchVideo()"
+        />
+        <button 
+          onclick="searchVideo()" 
+          class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-lg transition"
+        >
+          🔍 Tìm kiếm
+        </button>
+      </div>
     </div>
 
-    <div id="loading" class="hidden text-center text-gray-500 my-4">⏳ Đang tìm kiếm video...</div>
-    <div id="error" class="hidden text-center text-red-500 font-semibold my-4"></div>
+    <!-- DANH SÁCH / KẾT QUẢ VIDEO -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold text-gray-800">Danh Sách Video</h2>
+        <button onclick="loadAllVideos()" class="text-sm text-blue-600 hover:underline">🔄 Tải lại</button>
+      </div>
 
-    <div id="result" class="hidden flex-col items-center">
-      <p class="text-sm text-gray-600 mb-2">Mã đơn: <strong id="resQr" class="text-blue-600"></strong></p>
-      <video id="videoPlayer" controls class="w-full rounded-lg border border-gray-200 shadow-md mb-2"></video>
-      <span id="resTime" class="text-xs text-gray-400 mb-4"></span>
+      <div id="listLoading" class="hidden text-center py-4 text-gray-500">Đang tải dữ liệu...</div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b bg-gray-50 text-gray-600 text-sm">
+              <th class="p-3">Mã Đơn / QR</th>
+              <th class="p-3">Thời Gian Tải Lên</th>
+              <th class="p-3 text-right">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody id="videoTableBody" class="divide-y text-sm text-gray-700">
+            <!-- Dữ liệu video sẽ tự động đổ vào đây -->
+          </tbody>
+        </table>
+      </div>
     </div>
+
   </div>
 
-  <!-- DANH SÁCH VIDEO ĐÃ TẢI LÊN -->
-  <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 mt-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-lg font-bold text-gray-700">🎬 Danh Sách Video Đã Tải Lên Cloud</h2>
-      <button onclick="loadAllVideos()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-3 py-1 rounded transition">🔄 Làm mới</button>
-    </div>
-
-    <div id="listLoading" class="text-center text-gray-400 py-4">Đang tải danh sách...</div>
-    
-    <div class="overflow-x-auto">
-      <table class="w-full text-left text-sm border-collapse">
-        <thead>
-          <tr class="bg-gray-50 border-b">
-            <th class="p-3">Mã QR</th>
-            <th class="p-3">Thời Gian Upload</th>
-            <th class="p-3 text-right">Thao Tác</th>
-          </tr>
-        </thead>
-        <tbody id="videoTableBody">
-          <!-- Dữ liệu video sẽ tự nạp vào đây -->
-        </tbody>
-      </table>
+  <!-- BƯỚC 2 MỤC 1: KHUNG MODAL XEM VIDEO TRỰC TIẾP -->
+  <div id="videoModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl relative">
+      <div class="flex justify-between items-center p-4 border-b">
+        <h3 class="font-bold text-gray-800">Xem Video Đóng Gói</h3>
+        <button onclick="closeModal()" class="text-gray-400 hover:text-red-500 text-2xl font-bold px-2">&times;</button>
+      </div>
+      <div class="p-4 bg-black flex justify-center">
+        <video id="modalVideoPlayer" controls class="w-full max-h-[70vh] rounded-lg" autoplay></video>
+      </div>
     </div>
   </div>
 
   <script>
-    // Hàm tìm kiếm theo Mã QR
-    async function searchVideo() {
-      const qr = document.getElementById('qrInput').value.trim();
-      const loading = document.getElementById('loading');
-      const error = document.getElementById('error');
-      const result = document.getElementById('result');
-
-      if (!qr) return alert('Vui lòng nhập mã đơn!');
-
-      loading.classList.remove('hidden');
-      error.classList.add('hidden');
-      result.classList.add('hidden');
-
-      try {
-        const res = await fetch(`/api/search/${encodeURIComponent(qr)}`);
-        const data = await res.json();
-
-        loading.classList.add('hidden');
-
-        if (!res.ok) {
-          error.innerText = data.error || 'Lỗi không xác định';
-          error.classList.remove('hidden');
-          return;
-        }
-
-        document.getElementById('resQr').innerText = data.qr_code;
-        document.getElementById('videoPlayer').src = data.video_url;
-        document.getElementById('resTime').innerText = 'Thời gian tải lên: ' + new Date(data.created_at).toLocaleString('vi-VN');
-        result.classList.remove('hidden');
-        result.classList.add('flex');
-      } catch (err) {
-        loading.classList.add('hidden');
-        error.innerText = 'Không kết nối được đến máy chủ!';
-        error.classList.remove('hidden');
-      }
-    }
-
-    // Hàm lấy danh sách tất cả video đã upload
+    // Hàm tải danh sách video
     async function loadAllVideos() {
       const tbody = document.getElementById('videoTableBody');
       const listLoading = document.getElementById('listLoading');
-      tbody.innerHTML = '';
+      
       listLoading.classList.remove('hidden');
+      tbody.innerHTML = '';
 
       try {
         const res = await fetch('/api/videos');
         const data = await res.json();
         listLoading.classList.add('hidden');
 
-        if (data.success && data.videos.length > 0) {
+        if (data.videos && data.videos.length > 0) {
+          data.videos.forEach(vid => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b hover:bg-gray-50';
+            
+            // BƯỚC 2 MỤC 3: BỘ 3 NÚT BẤM VỚI THAO TÁC CHUẨN
+            tr.innerHTML = `
+              <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
+              <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
+              <td class="p-3 text-right space-x-1">
+                <button onclick="playVideo('${vid.video_url}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded">
+                  ▶ Xem
+                </button>
+                <button onclick="downloadVideo('${vid.video_url}', '${vid.qr_code}.mp4')" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded">
+                  ⬇ Tải
+                </button>
+                <button onclick="deleteVideo('${vid.id || vid.video_url}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded">
+                  🗑 Xoá
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } else {
+          tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Chưa có video nào trong hệ thống.</td></tr>';
+        }
+      } catch (err) {
+        listLoading.classList.add('hidden');
+        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Không thể tải danh sách video!</td></tr>';
+      }
+    }
+
+    // Hàm tìm kiếm theo mã
+    async function searchVideo() {
+      const qr = document.getElementById('qrInput').value.trim();
+      if (!qr) return loadAllVideos();
+
+      const tbody = document.getElementById('videoTableBody');
+      const listLoading = document.getElementById('listLoading');
+      
+      listLoading.classList.remove('hidden');
+      tbody.innerHTML = '';
+
+      try {
+        const res = await fetch(`/api/videos/${encodeURIComponent(qr)}`);
+        const data = await res.json();
+        listLoading.classList.add('hidden');
+
+        if (data.videos && data.videos.length > 0) {
           data.videos.forEach(vid => {
             const tr = document.createElement('tr');
             tr.className = 'border-b hover:bg-gray-50';
             tr.innerHTML = `
               <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
               <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
-              <td class="p-3 text-right">
-                <td class="p-3 text-right space-x-1">
-  <button onclick="playVideo('${vid.video_url}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded">
-    ▶ Xem
-  </button>
-  <a href="${vid.video_url}" download target="_blank" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded inline-block">
-    ⬇ Tải
-  </a>
-  <button onclick="deleteVideo('${vid.name || vid.id}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded">
-    🗑 Xoá
-  </button>
-</td>
+              <td class="p-3 text-right space-x-1">
+                <button onclick="playVideo('${vid.video_url}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded">
+                  ▶ Xem
+                </button>
+                <button onclick="downloadVideo('${vid.video_url}', '${vid.qr_code}.mp4')" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded">
+                  ⬇ Tải
+                </button>
+                <button onclick="deleteVideo('${vid.id || vid.video_url}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded">
+                  🗑 Xoá
+                </button>
               </td>
             `;
             tbody.appendChild(tr);
           });
         } else {
-          tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Chưa có video nào trên hệ thống!</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Không tìm thấy video nào phù hợp!</td></tr>';
         }
       } catch (err) {
         listLoading.classList.add('hidden');
-        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Không thể tải danh sách video.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Lỗi khi tìm kiếm video!</td></tr>';
       }
     }
-// 1. Hàm phát Video trực tiếp khi bấm nút "Xem"
-function playVideo(videoUrl) {
-  const videoPlayer = document.getElementById('videoPlayer'); // Tìm thẻ video chính trên trang
-  if (videoPlayer) {
-    videoPlayer.src = videoUrl;
-    videoPlayer.play();
-    videoPlayer.scrollIntoView({ behavior: 'smooth' }); // Cuộn màn hình tới khung xem video
-  } else {
-    window.open(videoUrl, '_blank'); // Nếu không có khung player thì mở tab mới
-  }
-}
 
-// 2. Hàm gọi API xóa file khi bấm nút "Xóa"
-async function deleteVideo(fileName) {
-  if (!confirm(`Bạn có chắc chắn muốn xoá video: ${fileName}?`)) {
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/videos/${encodeURIComponent(fileName)}`, {
-      method: 'DELETE'
-    });
-    const result = await res.json();
-
-    if (result.success) {
-      alert('✅ Đã xoá video thành công!');
-      // Gọi lại hàm tải danh sách video (thay loadVideos() bằng tên hàm load dữ liệu của bạn nếu khác)
-      if (typeof loadVideos === 'function') loadVideos(); 
-      else location.reload(); 
-    } else {
-      alert('❌ Lỗi xoá: ' + result.error);
+    // BƯỚC 2 MỤC 2: CÁC HÀM XỬ LÝ (Xem, Đóng modal, Tải xuống, Xoá)
+    function playVideo(url) {
+      const modal = document.getElementById('videoModal');
+      const player = document.getElementById('modalVideoPlayer');
+      if (modal && player) {
+        player.src = url;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        player.play();
+      }
     }
-  } catch (err) {
-    alert('❌ Lỗi kết nối đến Server!');
-  }
-}
+
+    function closeModal() {
+      const modal = document.getElementById('videoModal');
+      const player = document.getElementById('modalVideoPlayer');
+      if (modal && player) {
+        player.pause();
+        player.src = '';
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    async function downloadVideo(url, filename) {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = filename || 'video-dong-goi.mp4';
+        document.body.appendChild(a);
+        a.click();
+        
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+      } catch (err) {
+        window.open(url, '_blank');
+      }
+    }
+
+    async function deleteVideo(idOrUrl) {
+      if (!confirm('Bạn có chắc chắn muốn xoá video này không?')) return;
+
+      const target = idOrUrl.includes('/') ? idOrUrl.split('/').pop() : idOrUrl;
+
+      try {
+        const res = await fetch(`/api/videos/${encodeURIComponent(target)}`, {
+          method: 'DELETE'
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          alert('✅ Đã xoá video thành công!');
+          loadAllVideos(); 
+        } else {
+          alert('❌ Xoá thất bại: ' + (result.error || result.message));
+        }
+      } catch (err) {
+        alert('❌ Lỗi kết nối đến Server!');
+      }
+    }
+
     // Tự động tải danh sách video khi vừa mở trang
     window.onload = loadAllVideos;
   </script>
