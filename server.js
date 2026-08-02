@@ -86,46 +86,44 @@ app.get('/api/videos', async (req, res) => {
   }
 });
 // ==========================================
-// API XOÁ VIDEO THEO ID
+// API XOÁ VIDEO CHUẨN (HỖ TRỢ CẢ ID LẪN TÊN FILE)
 // ==========================================
-app.delete('/api/videos/:id', async (req, res) => {
+app.delete('/api/videos/:identifier', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { identifier } = req.params;
 
-    // 1. Tìm thông tin video trong DB để lấy tên file
-    const { data: video, error: fetchError } = await supabase
+    // 1. Tìm video trong Database bằng ID hoặc URL
+    let { data: video } = await supabase
       .from('videos')
       .select('*')
-      .eq('id', id)
-      .single();
+      .or(`id.eq.${identifier},video_url.ilike.%${identifier}%`)
+      .maybeSingle();
 
-    if (fetchError || !video) {
-      return res.status(404).json({ error: 'Không tìm thấy video!' });
+    let fileName = identifier;
+
+    if (video) {
+      fileName = video.video_url.split('/').pop();
     }
 
-    // Tách lấy tên file từ URL
-    const fileName = video.video_url.split('/').pop();
-
-    // 2. Xoá file video trên Supabase Storage
-    const { error: storageError } = await supabase
-      .storage
+    // 2. Xoá file trên Supabase Storage
+    const { error: storageError } = await supabase.storage
       .from('packaging-videos')
       .remove([fileName]);
 
-    if (storageError) console.error('Lỗi xoá Storage:', storageError);
+    if (storageError) console.error('Storage Delete Error:', storageError);
 
-    // 3. Xoá dòng ghi nhận trong Supabase Database
-    const { error: dbError } = await supabase
-      .from('videos')
-      .delete()
-      .eq('id', id);
-
-    if (dbError) return res.status(500).json({ error: 'Lỗi khi xoá Database!' });
+    // 3. Xoá dữ liệu dòng trong Supabase Database
+    if (video) {
+      await supabase.from('videos').delete().eq('id', video.id);
+    } else {
+      // Trường hợp DB lưu bằng tên file
+      await supabase.from('videos').delete().ilike('video_url', `%${fileName}%`);
+    }
 
     res.json({ success: true, message: 'Đã xoá video thành công!' });
   } catch (err) {
-    console.error('Lỗi Server:', err);
-    res.status(500).json({ error: 'Lỗi hệ thống!' });
+    console.error('Delete API Error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 // API 3: TRA CỨU VIDEO THEO MÃ QR
