@@ -85,7 +85,49 @@ app.get('/api/videos', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+// ==========================================
+// API XOÁ VIDEO THEO ID
+// ==========================================
+app.delete('/api/videos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    // 1. Tìm thông tin video trong DB để lấy tên file
+    const { data: video, error: fetchError } = await supabase
+      .from('videos')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !video) {
+      return res.status(404).json({ error: 'Không tìm thấy video!' });
+    }
+
+    // Tách lấy tên file từ URL
+    const fileName = video.video_url.split('/').pop();
+
+    // 2. Xoá file video trên Supabase Storage
+    const { error: storageError } = await supabase
+      .storage
+      .from('packaging-videos')
+      .remove([fileName]);
+
+    if (storageError) console.error('Lỗi xoá Storage:', storageError);
+
+    // 3. Xoá dòng ghi nhận trong Supabase Database
+    const { error: dbError } = await supabase
+      .from('videos')
+      .delete()
+      .eq('id', id);
+
+    if (dbError) return res.status(500).json({ error: 'Lỗi khi xoá Database!' });
+
+    res.json({ success: true, message: 'Đã xoá video thành công!' });
+  } catch (err) {
+    console.error('Lỗi Server:', err);
+    res.status(500).json({ error: 'Lỗi hệ thống!' });
+  }
+});
 // API 3: TRA CỨU VIDEO THEO MÃ QR
 app.get('/api/search/:qr_code', async (req, res) => {
   try {
