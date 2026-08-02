@@ -124,7 +124,42 @@
         tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Không thể tải danh sách video.</td></tr>';
       }
     }
+// 1. Hàm phát Video trực tiếp khi bấm nút "Xem"
+function playVideo(videoUrl) {
+  const videoPlayer = document.getElementById('videoPlayer'); // Tìm thẻ video chính trên trang
+  if (videoPlayer) {
+    videoPlayer.src = videoUrl;
+    videoPlayer.play();
+    videoPlayer.scrollIntoView({ behavior: 'smooth' }); // Cuộn màn hình tới khung xem video
+  } else {
+    window.open(videoUrl, '_blank'); // Nếu không có khung player thì mở tab mới
+  }
+}
 
+// 2. Hàm gọi API xóa file khi bấm nút "Xóa"
+async function deleteVideo(fileName) {
+  if (!confirm(`Bạn có chắc chắn muốn xoá video: ${fileName}?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/videos/${encodeURIComponent(fileName)}`, {
+      method: 'DELETE'
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      alert('✅ Đã xoá video thành công!');
+      // Gọi lại hàm tải danh sách video (thay loadVideos() bằng tên hàm load dữ liệu của bạn nếu khác)
+      if (typeof loadVideos === 'function') loadVideos(); 
+      else location.reload(); 
+    } else {
+      alert('❌ Lỗi xoá: ' + result.error);
+    }
+  } catch (err) {
+    alert('❌ Lỗi kết nối đến Server!');
+  }
+}
     // Tự động tải danh sách video khi vừa mở trang
     window.onload = loadAllVideos;
   </script>
