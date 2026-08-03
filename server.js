@@ -160,6 +160,40 @@ app.get('/api/search/:qr_code', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+// API XÓA NHIỀU VIDEO CÙNG LÚC (BULK DELETE)
+app.post('/api/videos/delete-multiple', async (req, res) => {
+  try {
+    const { ids } = req.body;
 
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Danh sách video xóa không hợp lệ' });
+    }
+
+    console.log(`[DELETE-BULK] Đang xóa ${ids.length} video:`, ids);
+
+    // Lấy tên các file cần xóa từ mảng ids/urls gửi lên
+    const filePaths = ids.map(item => item.includes('/') ? item.split('/').pop() : item);
+
+    // Xóa các file trong Supabase Storage (Bucket: packaging-videos)
+    const { data, error: storageError } = await supabase
+      .storage
+      .from('packaging-videos')
+      .remove(filePaths);
+
+    if (storageError) {
+      throw storageError;
+    }
+
+    return res.json({ 
+      success: true, 
+      message: `Đã xóa thành công ${ids.length} video!`,
+      deletedCount: ids.length 
+    });
+
+  } catch (err) {
+    console.error('Delete Bulk API Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
