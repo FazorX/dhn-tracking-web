@@ -160,7 +160,7 @@ app.get('/api/search/:qr_code', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
-// API XÓA NHIỀU VIDEO CÙNG LÚC (BULK DELETE)
+// API XÓA NHIỀU VIDEO CÙNG LÚC (ĐÃ FIX TÊN FILE FULL PATH)
 app.post('/api/videos/delete-multiple', async (req, res) => {
   try {
     const { ids } = req.body;
@@ -169,10 +169,13 @@ app.post('/api/videos/delete-multiple', async (req, res) => {
       return res.status(400).json({ error: 'Danh sách video xóa không hợp lệ' });
     }
 
-    console.log(`[DELETE-BULK] Đang xóa ${ids.length} video:`, ids);
+    // Lấy đúng tên file thực tế trên Storage (loại bỏ URL & decode ký tự đặc biệt)
+    const filePaths = ids.map(item => {
+      let fileName = item.includes('/') ? item.split('/').pop() : item;
+      return decodeURIComponent(fileName);
+    });
 
-    // Lấy tên các file cần xóa từ mảng ids/urls gửi lên
-    const filePaths = ids.map(item => item.includes('/') ? item.split('/').pop() : item);
+    console.log(`[DELETE-BULK] Đang thực hiện xóa các file:`, filePaths);
 
     // Xóa các file trong Supabase Storage (Bucket: packaging-videos)
     const { data, error: storageError } = await supabase
@@ -181,13 +184,14 @@ app.post('/api/videos/delete-multiple', async (req, res) => {
       .remove(filePaths);
 
     if (storageError) {
-      throw storageError;
+      console.error('[STORAGE-ERROR]', storageError);
+      return res.status(500).json({ error: storageError.message });
     }
 
     return res.json({ 
       success: true, 
-      message: `Đã xóa thành công ${ids.length} video!`,
-      deletedCount: ids.length 
+      message: `Đã xóa thành công ${filePaths.length} video!`,
+      deletedFiles: data 
     });
 
   } catch (err) {
