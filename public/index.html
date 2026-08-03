@@ -188,12 +188,11 @@
 
       if (!confirm(`Bạn có chắc chắn muốn XOÁ VĨNH VIỄN ${checkboxes.length} video đã chọn không?`)) return;
 
-      const idsOrTargets = Array.from(checkboxes).map(cb => {
-        const id = cb.getAttribute('data-id');
-        const url = cb.getAttribute('data-url');
-        const target = id || (url && url.includes('/') ? url.split('/').pop() : url);
-        return target;
-      });
+      // Trong hàm deleteSelectedVideos(), sửa dòng lấy targets thành:
+const idsOrTargets = Array.from(checkboxes).map(cb => {
+  const url = cb.getAttribute('data-url') || cb.value;
+  return url; // Gửi thẳng URL/Filename đầy đủ lên để backend tự tách
+});
 
       const btn = document.getElementById('btnBulkDelete');
       const originalText = btn.innerHTML;
