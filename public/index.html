@@ -248,14 +248,16 @@
           
           tr.innerHTML = `
             <td class="p-3 text-center">
-              <input 
-                type="checkbox" 
-                class="video-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer" 
-                data-id="${vid.id || ''}" 
-                data-url="${vid.video_url || ''}" 
-                data-qr="${vid.qr_code || ''}" 
-                onchange="updateSelectedCount()"
-              />
+              // Tìm dòng tạo checkbox trong hàm renderVideoRows và cập nhật thành:
+<input 
+  type="checkbox" 
+  class="video-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer" 
+  data-id="${vid.id || ''}" 
+  data-url="${vid.video_url || ''}" 
+  data-qr="${vid.qr_code || ''}" 
+  value="${vid.video_url || vid.qr_code}" 
+  onchange="updateSelectedCount()"
+/>
             </td>
             <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
             <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
