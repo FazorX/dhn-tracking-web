@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tra Cứu Video Đóng Gói</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Thư viện hỗ trợ nén nhiều video thành file ZIP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-4 md:p-8">
   <div class="max-w-4xl mx-auto space-y-6">
@@ -37,12 +40,43 @@
         <button onclick="loadAllVideos()" class="text-sm text-blue-600 hover:underline">🔄 Tải lại</button>
       </div>
 
+      <!-- THANH THAO TÁC HÀNG LOẠT (BULK ACTIONS BAR) -->
+      <div id="bulkActionsBar" class="hidden mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex-wrap items-center justify-between gap-3">
+        <div class="text-sm font-semibold text-blue-800">
+          Đã chọn <span id="selectedCount" class="text-blue-600 font-bold">0</span> video
+        </div>
+        <div class="flex items-center gap-2">
+          <button 
+            id="btnBulkDownload"
+            onclick="downloadSelectedVideos()" 
+            class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition flex items-center gap-1 shadow-sm"
+          >
+            📥 Tải các video đã chọn (.ZIP)
+          </button>
+          <button 
+            id="btnBulkDelete"
+            onclick="deleteSelectedVideos()" 
+            class="bg-red-600 hover:bg-red-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition flex items-center gap-1 shadow-sm"
+          >
+            🗑️ Xóa các video đã chọn
+          </button>
+        </div>
+      </div>
+
       <div id="listLoading" class="hidden text-center py-4 text-gray-500">Đang tải dữ liệu...</div>
 
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="border-b bg-gray-50 text-gray-600 text-sm">
+              <th class="p-3 w-10 text-center">
+                <input 
+                  type="checkbox" 
+                  id="selectAllCheckbox" 
+                  onchange="toggleSelectAll(this)" 
+                  class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                />
+              </th>
               <th class="p-3">Mã Đơn / QR</th>
               <th class="p-3">Thời Gian Tải Lên</th>
               <th class="p-3 text-right">Thao Tác</th>
@@ -57,7 +91,7 @@
 
   </div>
 
-  <!-- BƯỚC 2 MỤC 1: KHUNG MODAL XEM VIDEO TRỰC TIẾP -->
+  <!-- KHUNG MODAL XEM VIDEO TRỰC TIẾP -->
   <div id="videoModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
     <div class="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl relative">
       <div class="flex justify-between items-center p-4 border-b">
@@ -71,7 +105,180 @@
   </div>
 
   <script>
-    // Hàm tải danh sách video
+    // -------------------------------------------------------------
+    // LOGIC CHECKBOX & THAO TÁC HÀNG LOẠT (BULK ACTIONS)
+    // -------------------------------------------------------------
+    function updateSelectedCount() {
+      const checkboxes = document.querySelectorAll('.video-checkbox:checked');
+      const count = checkboxes.length;
+      const bulkBar = document.getElementById('bulkActionsBar');
+      const selectAll = document.getElementById('selectAllCheckbox');
+      const allCheckboxes = document.querySelectorAll('.video-checkbox');
+
+      document.getElementById('selectedCount').innerText = count;
+
+      if (count > 0) {
+        bulkBar.classList.remove('hidden');
+        bulkBar.classList.add('flex');
+      } else {
+        bulkBar.classList.add('hidden');
+        bulkBar.classList.remove('flex');
+      }
+
+      // Tự động check nút "Chọn tất cả" nếu đã tích chọn hết danh sách
+      if (allCheckboxes.length > 0 && count === allCheckboxes.length) {
+        selectAll.checked = true;
+      } else {
+        selectAll.checked = false;
+      }
+    }
+
+    function toggleSelectAll(masterCheckbox) {
+      const checkboxes = document.querySelectorAll('.video-checkbox');
+      checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+      updateSelectedCount();
+    }
+
+    // TẢI NHIỀU VIDEO CÙNG LÚC NÉN THÀNH FILE .ZIP
+    async function downloadSelectedVideos() {
+      const checkboxes = document.querySelectorAll('.video-checkbox:checked');
+      if (checkboxes.length === 0) return;
+
+      const btn = document.getElementById('btnBulkDownload');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Đang nén file ZIP...';
+      btn.disabled = true;
+
+      try {
+        const zip = new JSZip();
+        const folder = zip.folder("Video_Dong_Goi");
+
+        for (let i = 0; i < checkboxes.length; i++) {
+          const cb = checkboxes[i];
+          const url = cb.getAttribute('data-url');
+          const qr = cb.getAttribute('data-qr') || `video_${i+1}`;
+          const filename = `${qr}.mp4`;
+
+          try {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            folder.file(filename, blob);
+          } catch (err) {
+            console.error(`Lỗi khi tải video ${filename}:`, err);
+          }
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const dateStr = new Date().toISOString().slice(0, 10);
+        saveAs(zipBlob, `DHN_Videos_${dateStr}.zip`);
+
+      } catch (err) {
+        alert('❌ Đã xảy ra lỗi khi tạo file ZIP!');
+        console.error(err);
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    // XÓA NHIỀU VIDEO CÙNG LÚC
+    async function deleteSelectedVideos() {
+      const checkboxes = document.querySelectorAll('.video-checkbox:checked');
+      if (checkboxes.length === 0) return;
+
+      if (!confirm(`Bạn có chắc chắn muốn XOÁ VĨNH VIỄN ${checkboxes.length} video đã chọn không?`)) return;
+
+      const idsOrTargets = Array.from(checkboxes).map(cb => {
+        const id = cb.getAttribute('data-id');
+        const url = cb.getAttribute('data-url');
+        const target = id || (url && url.includes('/') ? url.split('/').pop() : url);
+        return target;
+      });
+
+      const btn = document.getElementById('btnBulkDelete');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Đang xóa...';
+      btn.disabled = true;
+
+      try {
+        // Gửi mảng IDs cần xóa lên Server API
+        const res = await fetch('/api/videos/delete-multiple', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: idsOrTargets })
+        });
+
+        const result = await res.json();
+
+        if (res.ok && (result.success || result.deletedCount > 0)) {
+          alert(`✅ Đã xoá thành công các video đã chọn!`);
+          loadAllVideos();
+        } else {
+          // Trường hợp Server chưa có API xóa nhiều, fallback xóa từng cái
+          let successCount = 0;
+          for (const target of idsOrTargets) {
+            try {
+              const r = await fetch(`/api/videos/${encodeURIComponent(target)}`, { method: 'DELETE' });
+              if (r.ok) successCount++;
+            } catch (e) {}
+          }
+          alert(`✅ Đã xoá ${successCount}/${idsOrTargets.length} video!`);
+          loadAllVideos();
+        }
+      } catch (err) {
+        alert('❌ Có lỗi kết nối khi xoá video!');
+        console.error(err);
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------
+    // LOGIC HIỂN THỊ VÀ TÌM KIẾM CŨ
+    // -------------------------------------------------------------
+    function renderVideoRows(videos) {
+      const tbody = document.getElementById('videoTableBody');
+      tbody.innerHTML = '';
+
+      if (videos && videos.length > 0) {
+        videos.forEach(vid => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-b hover:bg-gray-50 transition';
+          
+          tr.innerHTML = `
+            <td class="p-3 text-center">
+              <input 
+                type="checkbox" 
+                class="video-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer" 
+                data-id="${vid.id || ''}" 
+                data-url="${vid.video_url || ''}" 
+                data-qr="${vid.qr_code || ''}" 
+                onchange="updateSelectedCount()"
+              />
+            </td>
+            <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
+            <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
+            <td class="p-3 text-right space-x-1">
+              <button onclick="playVideo('${vid.video_url}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded transition">
+                ▶ Xem
+              </button>
+              <button onclick="downloadVideo('${vid.video_url}', '${vid.qr_code}.mp4')" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded transition">
+                ⬇ Tải
+              </button>
+              <button onclick="deleteVideo('${vid.id || vid.video_url}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded transition">
+                🗑 Xoá
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Không có video nào trong hệ thống.</td></tr>';
+      }
+      updateSelectedCount();
+    }
+
     async function loadAllVideos() {
       const tbody = document.getElementById('videoTableBody');
       const listLoading = document.getElementById('listLoading');
@@ -84,39 +291,14 @@
         const data = await res.json();
         listLoading.classList.add('hidden');
 
-        if (data.videos && data.videos.length > 0) {
-          data.videos.forEach(vid => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            
-            // BƯỚC 2 MỤC 3: BỘ 3 NÚT BẤM VỚI THAO TÁC CHUẨN
-            tr.innerHTML = `
-              <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
-              <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
-              <td class="p-3 text-right space-x-1">
-                <button onclick="playVideo('${vid.video_url}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded">
-                  ▶ Xem
-                </button>
-                <button onclick="downloadVideo('${vid.video_url}', '${vid.qr_code}.mp4')" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded">
-                  ⬇ Tải
-                </button>
-                <button onclick="deleteVideo('${vid.id || vid.video_url}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded">
-                  🗑 Xoá
-                </button>
-              </td>
-            `;
-            tbody.appendChild(tr);
-          });
-        } else {
-          tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Chưa có video nào trong hệ thống.</td></tr>';
-        }
+        renderVideoRows(data.videos);
       } catch (err) {
         listLoading.classList.add('hidden');
-        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Không thể tải danh sách video!</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">Không thể tải danh sách video!</td></tr>';
+        updateSelectedCount();
       }
     }
 
-    // Hàm tìm kiếm theo mã
     async function searchVideo() {
       const qr = document.getElementById('qrInput').value.trim();
       if (!qr) return loadAllVideos();
@@ -132,37 +314,14 @@
         const data = await res.json();
         listLoading.classList.add('hidden');
 
-        if (data.videos && data.videos.length > 0) {
-          data.videos.forEach(vid => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
-            tr.innerHTML = `
-              <td class="p-3 font-semibold text-blue-600">${vid.qr_code}</td>
-              <td class="p-3 text-gray-500">${new Date(vid.created_at).toLocaleString('vi-VN')}</td>
-              <td class="p-3 text-right space-x-1">
-                <button onclick="playVideo('${vid.video_url}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded">
-                  ▶ Xem
-                </button>
-                <button onclick="downloadVideo('${vid.video_url}', '${vid.qr_code}.mp4')" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded">
-                  ⬇ Tải
-                </button>
-                <button onclick="deleteVideo('${vid.id || vid.video_url}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded">
-                  🗑 Xoá
-                </button>
-              </td>
-            `;
-            tbody.appendChild(tr);
-          });
-        } else {
-          tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Không tìm thấy video nào phù hợp!</td></tr>';
-        }
+        renderVideoRows(data.videos);
       } catch (err) {
         listLoading.classList.add('hidden');
-        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Lỗi khi tìm kiếm video!</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">Lỗi khi tìm kiếm video!</td></tr>';
+        updateSelectedCount();
       }
     }
 
-    // BƯỚC 2 MỤC 2: CÁC HÀM XỬ LÝ (Xem, Đóng modal, Tải xuống, Xoá)
     function playVideo(url) {
       const modal = document.getElementById('videoModal');
       const player = document.getElementById('modalVideoPlayer');
@@ -227,7 +386,6 @@
       }
     }
 
-    // Tự động tải danh sách video khi vừa mở trang
     window.onload = loadAllVideos;
   </script>
 </body>
