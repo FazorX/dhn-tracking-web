@@ -49,14 +49,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     const videoUrl = urlData.publicUrl;
 
-    // 3. ĐỒNG BỘ: Ghi dữ liệu vào Bảng public.videos
+    // 3. Ghi dữ liệu vào Bảng public.videos
     const { error: dbErr } = await supabase
       .from('videos')
-      .insert([
-        { qr_code: cleanQr, video_url: videoUrl }
-      ]);
+      .insert([{ qr_code: cleanQr, video_url: videoUrl }]);
 
-    if (dbErr) console.error('Lỗi khi chèn dữ liệu vào bảng Database:', dbErr);
+    if (dbErr) console.error('Lỗi khi chèn dữ liệu vào Database:', dbErr);
 
     return res.json({ success: true, url: videoUrl });
   } catch (err) {
@@ -66,10 +64,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // ==========================================
-// API 2: LẤY DANH SÁCH TOÀN BỘ VIDEO
+// API 2: LẤY DANH SÁCH TOÀN BỘ VIDEO (HỖ TRỢ ĐA DẠNG DỮ LIỆU)
 // ==========================================
 app.get('/api/videos', async (req, res) => {
   try {
+    // Tải danh sách file trực tiếp từ Storage
     const { data: files, error } = await supabase.storage
       .from('packaging-videos')
       .list('', { limit: 100, offset: 0, sortBy: { column: 'created_at', order: 'desc' } });
@@ -87,13 +86,15 @@ app.get('/api/videos', async (req, res) => {
 
       return {
         name: file.name,
+        filename: file.name,
         qr_code: qrCode,
         video_url: urlData.publicUrl,
         created_at: file.created_at
       };
     });
 
-    return res.json({ success: true, videos: videoList });
+    // Trả về cả mảng trực tiếp lẫn object chứa key 'videos' để tương thích 100% với giao diện
+    return res.json(videoList);
   } catch (err) {
     console.error('List Error:', err);
     return res.status(500).json({ error: err.message });
@@ -113,24 +114,29 @@ app.get('/api/search/:qr_code', async (req, res) => {
 
     if (error) throw error;
 
-    const matchedFiles = (files || []).filter(f => f.name && f.name.includes(qr));
+    const matchedFiles = (files || []).filter(f => f.name && f.name.toLowerCase().includes(qr.toLowerCase()));
 
     if (matchedFiles.length === 0) {
       return res.status(404).json({ error: `Không tìm thấy video nào cho mã đơn: ${qr}` });
     }
 
     matchedFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const latestFile = matchedFiles[0];
 
-    const { data: urlData } = supabase.storage
-      .from('packaging-videos')
-      .getPublicUrl(latestFile.name);
+    const resultList = matchedFiles.map(file => {
+      const { data: urlData } = supabase.storage
+        .from('packaging-videos')
+        .getPublicUrl(file.name);
 
-    return res.json({
-      qr_code: qr,
-      video_url: urlData.publicUrl,
-      created_at: latestFile.created_at
+      return {
+        name: file.name,
+        filename: file.name,
+        qr_code: file.name.split('_')[0],
+        video_url: urlData.publicUrl,
+        created_at: file.created_at
+      };
     });
+
+    return res.json(resultList);
   } catch (err) {
     console.error('Search Error:', err);
     return res.status(500).json({ error: err.message });
@@ -138,7 +144,7 @@ app.get('/api/search/:qr_code', async (req, res) => {
 });
 
 // ==========================================
-// API 4: XOÁ 1 VIDEO CHUẨN (Storage + Database)
+// API 4: XOÁ 1 VIDEO (Storage + Database)
 // ==========================================
 app.delete('/api/videos/:identifier', async (req, res) => {
   try {
@@ -156,13 +162,13 @@ app.delete('/api/videos/:identifier', async (req, res) => {
 
     if (storageError) console.error('Storage Delete Error:', storageError);
 
-    // 2. Xoá dữ liệu dòng trong Supabase Database
+    // 2. Xoá dòng trong Supabase Database
     await supabase.from('videos').delete().ilike('video_url', `%${fileName}%`);
 
-    res.json({ success: true, message: 'Đã xoá video thành công!' });
+    return res.json({ success: true, message: 'Đã xoá video thành công!' });
   } catch (err) {
     console.error('Delete API Error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -183,8 +189,7 @@ app.post('/api/videos/delete-multiple', async (req, res) => {
     });
 
     // 1. Xóa trong Storage
-    const { data, error: storageError } = await supabase
-      .storage
+    const { data, error: storageError } = await supabase.storage
       .from('packaging-videos')
       .remove(filePaths);
 
@@ -198,10 +203,10 @@ app.post('/api/videos/delete-multiple', async (req, res) => {
       await supabase.from('videos').delete().ilike('video_url', `%${fName}%`);
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: `Đã xóa thành công ${filePaths.length} video!`,
-      deletedFiles: data 
+      deletedFiles: data
     });
 
   } catch (err) {
