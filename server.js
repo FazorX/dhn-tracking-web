@@ -4,24 +4,40 @@ const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 
 const app = express();
-// Tăng giới hạn dung lượng nhận file lên 100MB
+
+// 🚀 TĂNG DUNG LƯỢNG FILE TẢI LÊN THÀNH 400MB
+const MAX_SIZE = 400 * 1024 * 1024; // 400 MB
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 400 * 1024 * 1024 } 
+  limits: { fileSize: MAX_SIZE } 
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '400mb' }));
+app.use(express.urlencoded({ limit: '400mb', extended: true }));
 app.use(express.static('public'));
 
+// ⚠️ CẤU HÌNH SUPABASE
 const SUPABASE_URL = 'https://prowunbttjdcqeqmprxr.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb3d1bmJ0dGpkY3FlcW1wcnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzk0MDUsImV4cCI6MjEwMDk1NTQwNX0.8BaqqhAQZ92T4VlMyrI6baLa6nH2bIuiW9eOUGCbaj4';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ==========================================
-// API 1: UPLOAD (CHỐNG TRÙNG TÊN & TỐI ƯU NHẬN FILE)
+// API 1: RASPBERRY PI TẢI VIDEO LÊN (TỐI ĐA 400MB)
 // ==========================================
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File quá lớn! Dung lượng tối đa là 400MB.' });
+      }
+      return res.status(400).json({ error: err.message });
+    } else if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { qr_code, api_key } = req.body;
     const file = req.file;
@@ -33,35 +49,34 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
     const cleanQr = qr_code ? qr_code.trim() : 'UNKNOWN';
-    // Thêm random string để ĐẢM BẢO KHÔNG BAO GIỜ TRÙNG FILE
     const uniqueSuffix = Math.random().toString(36).substring(2, 7);
     const fileName = `${cleanQr}_${Date.now()}_${uniqueSuffix}.mp4`;
 
-    // 1. Upload vào Storage
+    // 1. Upload file vào Supabase Storage
     const { error: uploadErr } = await supabase.storage
       .from('packaging-videos')
       .upload(fileName, file.buffer, {
         contentType: 'video/mp4',
-        upsert: false // Không cho ghi đè
+        upsert: false
       });
 
     if (uploadErr) throw uploadErr;
 
-    // 2. Lấy URL
+    // 2. Lấy đường dẫn Public URL
     const { data: urlData } = supabase.storage
       .from('packaging-videos')
       .getPublicUrl(fileName);
 
     const videoUrl = urlData.publicUrl;
 
-    // 3. ĐỒNG BỘ VÀO DATABASE (QUAN TRỌNG)
+    // 3. Ghi dữ liệu vào Database
     const { error: dbErr } = await supabase
       .from('videos')
       .insert([{ qr_code: cleanQr, video_url: videoUrl }]);
 
-    if (dbErr) console.error('Lỗi insert Database:', dbErr);
+    if (dbErr) console.error('Lỗi chèn Database:', dbErr);
 
-    console.log(`[SUCCESS] Upload thành công: ${fileName}`);
+    console.log(`[SUCCESS] Đã upload video ${fileName} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
     return res.json({ success: true, url: videoUrl });
 
   } catch (err) {
@@ -71,16 +86,15 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // ==========================================
-// API 2: LẤY DANH SÁCH (ƯU TIÊN LẤY TỪ DATABASE BẢNG VIDEOS)
+// API 2: LẤY DANH SÁCH VIDEO
 // ==========================================
 app.get('/api/videos', async (req, res) => {
   try {
-    // Ưu tiên đọc từ Bảng Database để lấy full dữ liệu không bị giới hạn limit storage
     const { data: dbVideos, error: dbErr } = await supabase
       .from('videos')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(500); // Lấy đến 500 video gần nhất
+      .limit(500);
 
     if (!dbErr && dbVideos && dbVideos.length > 0) {
       const formattedList = dbVideos.map(item => ({
@@ -93,7 +107,6 @@ app.get('/api/videos', async (req, res) => {
       return res.json(formattedList);
     }
 
-    // Fallback nếu Database trống: Lấy từ Storage
     const { data: files, error: storageErr } = await supabase.storage
       .from('packaging-videos')
       .list('', { limit: 500, sortBy: { column: 'created_at', order: 'desc' } });
@@ -122,7 +135,9 @@ app.get('/api/videos', async (req, res) => {
   }
 });
 
-// các API search, delete giữ nguyên...
+// ==========================================
+// API 3: TRA CỨU VIDEO THEO MÃ QR
+// ==========================================
 app.get('/api/search/:qr_code', async (req, res) => {
   try {
     const qr = req.params.qr_code.trim();
@@ -149,18 +164,24 @@ app.get('/api/search/:qr_code', async (req, res) => {
   }
 });
 
+// ==========================================
+// API 4: XOÁ 1 VIDEO
+// ==========================================
 app.delete('/api/videos/:identifier', async (req, res) => {
   try {
     const { identifier } = req.params;
     let fileName = decodeURIComponent(identifier).split('/').pop();
     await supabase.storage.from('packaging-videos').remove([fileName]);
     await supabase.from('videos').delete().ilike('video_url', `%${fileName}%`);
-    res.json({ success: true });
+    res.json({ success: true, message: 'Đã xoá thành công!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// ==========================================
+// API 5: XOÁ NHIỀU VIDEO
+// ==========================================
 app.post('/api/videos/delete-multiple', async (req, res) => {
   try {
     const { ids } = req.body;
@@ -170,11 +191,14 @@ app.post('/api/videos/delete-multiple', async (req, res) => {
     for (const f of filePaths) {
       await supabase.from('videos').delete().ilike('video_url', `%${f}%`);
     }
-    res.json({ success: true });
+    res.json({ success: true, message: `Đã xóa ${filePaths.length} video!` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// ⏱️ NÂNG TIMEOUT LÊN 10 PHÚT ĐỂ TẢI FILE NẶNG BẰNG RASPBERRY PI KHÔNG BỊ DISCONNECT
+server.timeout = 10 * 60 * 1000;
