@@ -211,44 +211,204 @@
     }
 
     // HÀM HIỂN THỊ DỮ LIỆU AN TOÀN VÀ ĐÚNG ĐỊNH DẠNG HỆ THỐNG CỦA BẠN
-    function renderVideoRows(rawResponse) {
-      const tbody = document.getElementById('videoTableBody');
-      tbody.innerHTML = '';
+    <script>
+  function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.video-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkBar = document.getElementById('bulkActionsBar');
+    const selectAll = document.getElementById('selectAllCheckbox');
+    const allCheckboxes = document.querySelectorAll('.video-checkbox');
 
-      // Tự động giải mã dữ liệu trả về từ Server
-      let list = [];
-      if (Array.isArray(rawResponse)) {
-        list = rawResponse;
-      } else if (rawResponse && Array.isArray(rawResponse.videos)) {
-        list = rawResponse.videos;
-      } else if (rawResponse && Array.isArray(rawResponse.files)) {
-        list = rawResponse.files;
-      } else if (rawResponse && typeof rawResponse === 'object' && rawResponse.video_url) {
-        list = [rawResponse];
+    if (document.getElementById('selectedCount')) {
+      document.getElementById('selectedCount').innerText = count;
+    }
+
+    if (bulkBar) {
+      if (count > 0) {
+        bulkBar.classList.remove('hidden');
+        bulkBar.classList.add('flex');
+      } else {
+        bulkBar.classList.add('hidden');
+        bulkBar.classList.remove('flex');
       }
+    }
 
-      if (list && list.length > 0) {
-        list.forEach(vid => {
-          const fileName = vid.name || vid.filename || (vid.video_url ? vid.video_url.split('/').pop() : '') || vid.qr_code || '';
-          const qrCode = vid.qr_code || fileName.replace(/\.[^/.]+$/, "");
-          const fileUrl = vid.video_url || vid.url || `/api/video-stream/${encodeURIComponent(fileName)}`;
-          const createdAt = vid.created_at ? new Date(vid.created_at).toLocaleString('vi-VN') : 'Mới tải lên';
+    if (selectAll && allCheckboxes.length > 0) {
+      selectAll.checked = (count === allCheckboxes.length);
+    }
+  }
 
-          const tr = document.createElement('tr');
-          tr.className = 'border-b hover:bg-gray-50 transition';
-          
-          tr.innerHTML = `
-            <td class="p-3 text-center">
-              <input 
-                type="checkbox" 
-                class="video-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer" 
-                data-filename="${fileName}"
-                data-url="${fileUrl}" 
-                data-qr="${qrCode}" 
-                onchange="updateSelectedCount()"
-              />
-            </td>
-            <td class="p-3 font-semibold text-blue-600">${qrCode}</td>
-            <td class="p-3 text-gray-500">${createdAt}</td>
-            <td class="p-3 text-right space-x-1">
-              <button onclick="playVideo('${fileUrl}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-
+  function toggleSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.video-checkbox');
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    updateSelectedCount();
+  }
+
+  function renderVideoRows(rawResponse) {
+    const tbody = document.getElementById('videoTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    // BẮT CẢ 2 DẠNG TRẢ VỀ: DẠNG MẢNG CÔNG KHAI HOẶC DẠNG OBJECT { success: true, videos: [...] }
+    let list = [];
+    if (Array.isArray(rawResponse)) {
+      list = rawResponse;
+    } else if (rawResponse && Array.isArray(rawResponse.videos)) {
+      list = rawResponse.videos;
+    } else if (rawResponse && Array.isArray(rawResponse.files)) {
+      list = rawResponse.files;
+    } else if (rawResponse && typeof rawResponse === 'object' && rawResponse.video_url) {
+      list = [rawResponse];
+    }
+
+    if (list && list.length > 0) {
+      list.forEach(vid => {
+        if (!vid) return;
+
+        const fileName = vid.name || vid.filename || (vid.video_url ? vid.video_url.split('/').pop() : '') || 'video.mp4';
+        const qrCode = vid.qr_code || fileName.split('_')[0] || 'Mã QR';
+        const fileUrl = vid.video_url || vid.url || '';
+        
+        let createdAt = 'Mới tải lên';
+        if (vid.created_at) {
+          try { 
+            createdAt = new Date(vid.created_at).toLocaleString('vi-VN'); 
+          } catch(e){}
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = 'border-b hover:bg-gray-50 transition';
+        
+        tr.innerHTML = `
+          <td class="p-3 text-center">
+            <input 
+              type="checkbox" 
+              class="video-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer" 
+              data-filename="${fileName}"
+              data-url="${fileUrl}" 
+              data-qr="${qrCode}" 
+              onchange="updateSelectedCount()"
+            />
+          </td>
+          <td class="p-3 font-semibold text-blue-600">${qrCode}</td>
+          <td class="p-3 text-gray-500">${createdAt}</td>
+          <td class="p-3 text-right space-x-1">
+            <button onclick="playVideo('${fileUrl}')" class="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded transition">
+              ▶ Xem
+            </button>
+            <button onclick="downloadVideo('${fileUrl}', '${qrCode}.mp4')" class="px-2.5 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded transition">
+              ⬇ Tải
+            </button>
+            <button onclick="deleteVideo('${fileName}')" class="px-2.5 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded transition">
+              🗑 Xoá
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Không có video nào trong hệ thống.</td></tr>';
+    }
+    updateSelectedCount();
+  }
+
+  async function loadAllVideos() {
+    const tbody = document.getElementById('videoTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">⏳ Đang tải dữ liệu...</td></tr>';
+    }
+
+    try {
+      const res = await fetch('/api/videos');
+      const data = await res.json();
+      renderVideoRows(data);
+    } catch (err) {
+      console.error(err);
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">❌ Không thể tải danh sách video!</td></tr>`;
+      }
+    }
+  }
+
+  async function searchVideo() {
+    const qrInput = document.getElementById('qrInput');
+    const qr = qrInput ? qrInput.value.trim() : '';
+    if (!qr) return loadAllVideos();
+
+    const tbody = document.getElementById('videoTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">🔍 Đang tìm kiếm...</td></tr>';
+    }
+
+    try {
+      const res = await fetch(`/api/search/${encodeURIComponent(qr)}`);
+      const data = await res.json();
+      renderVideoRows(data);
+    } catch (err) {
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-red-500">❌ Không tìm thấy video phù hợp!</td></tr>';
+      }
+    }
+  }
+
+  function playVideo(url) {
+    const modal = document.getElementById('videoModal');
+    const player = document.getElementById('modalVideoPlayer');
+    if (modal && player) {
+      player.src = url;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      player.play();
+    }
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('videoModal');
+    const player = document.getElementById('modalVideoPlayer');
+    if (modal && player) {
+      player.pause();
+      player.src = '';
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  async function downloadVideo(url, filename) {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = blobUrl;
+      a.download = filename || 'video.mp4';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+    } catch (err) {
+      window.open(url, '_blank');
+    }
+  }
+
+  async function deleteVideo(fileName) {
+    if (!confirm('Bạn có chắc chắn muốn xoá video này không?')) return;
+
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(fileName)}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        alert('✅ Đã xoá video thành công!');
+        loadAllVideos(); 
+      } else {
+        alert('❌ Xoá thất bại!');
+      }
+    } catch (err) {
+      alert('❌ Lỗi kết nối server!');
+    }
+  }
+
+  window.onload = loadAllVideos;
+</script>
